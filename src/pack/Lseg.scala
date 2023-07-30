@@ -24,21 +24,28 @@ object Lseg {
 
 			.set("spark.driver.allowMultipleContexts", "true")
 
-
+      // creating spark context 
 			val sc = new SparkContext(conf)
 			sc.setLogLevel("ERROR")
+			
+			//creating spark session  
 			val spark = SparkSession
 			                .builder
 			                .getOrCreate()
 
     import spark.implicits._
-    //Note: In my local the file path was "file:///C:/Users/Personal/Desktop/tcs-coding-excercise/exampleOrders.csv"
-    val ordersRDD = sc.textFile("file:///C:/Users/Personal/Desktop/tcs-coding-excercise/exampleOrders.csv")
+    
+    // loading the data from file by passing filepath as program argument
+    val ordersRDD = sc.textFile(args(0))
+    
+    // imposing schema to the rdd using case class
     val finalRDD = ordersRDD.map( x => x.split(",")).map(x => Order(x(0),x(1),x(2),x(3),x(4),x(5)))
+    
+    //converting rdd to dataframe
     val ordersDF = finalRDD.toDF()
-
     ordersDF.createOrReplaceTempView("orders")
 
+    // matching the records by using inner join and then filter out accordingly 
     val matchesDF = spark.sql("""
            SELECT o1.OrderID AS Order_ID_1, o2.OrderID AS Order_ID_2,
            o1.UserName AS User_Name_1, o2.UserName AS User_Name_2,
@@ -51,10 +58,12 @@ object Lseg {
            AND (o1.OrderType != o2.OrderType)
            AND ((o1.OrderType = 'BUY' AND o1.Price >= o2.Price)
            OR (o1.OrderType = 'SELL' AND o1.Price <= o2.Price))
-                              """)
+                            """)
     matchesDF.createOrReplaceTempView("matches")
-
+    
+    // selecting the required columns from the above data frame
     val finalopDF = spark.sql("""select Order_ID_2,Order_Id_1,Order_Time_2,Quantity_2,Price_1 from matches order by Order_ID_2 desc""")
     finalopDF.show()
+    
   }
 }
